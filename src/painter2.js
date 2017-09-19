@@ -43,22 +43,24 @@ p.initialize = function() {
             ]
         }
     );
+    //this.lc.respondToSizeChange();
 
     bgImage.onload = function() {
         this.lc.repaintLayer("background")
     }.bind(this);
 
     var watchFunc = function(e) {
-        if ((e.shape && !e.opts && e.shape.isPass) ||
-            e.opts && e.opts.isPass) {
-            Entry.do("processPicture", e, this.lc)
+        if (e && ((e.shape && !e.opts && e.shape.isPass) ||
+            e.opts && e.opts.isPass)) {
+            Entry.do("processPicture", e, this.lc);
         } else {
-            Entry.do("editPicture", e, this.lc)
+            Entry.do("editPicture", e, this.lc);
         }
         this.file.modified = true;
-    }.bind(this)
+    }.bind(this);
 
     this.lc.on("clear", watchFunc);
+    this.lc.on("remove", watchFunc);
     this.lc.on("shapeEdit", watchFunc);
     this.lc.on("shapeSave", watchFunc);
 
@@ -92,24 +94,31 @@ p.changePicture = function(picture) {
     //painter.selectToolbox('cursor');
     if (this.file && this.file.id === picture.id)
         return;
-
     if (this.file.modified) {
-        var save = confirm('수정된 내용을 저장하시겠습니까?');
-        if (save) {
-            this.file_save(true);
-        }
+        entrylms.confirm(Lang.Menus.save_modified_shape).then(function(result){
+            if (result === true){
+                this.file_save(true);
+            }
+            this.afterModified(picture);
+        }.bind(this));
+        return;
     }
+    this.afterModified(picture);
+};
+
+p.afterModified = function(picture) {
     this.file.modified = false;
     this.lc.clear(false);
 
-    if (picture.id)
-        this.file.id = picture.id;
-    else
-        this.file.id = Entry.generateHash();
+    this.file.id = picture.id || Entry.generateHash();
     this.file.name = picture.name;
     this.file.mode = 'edit';
+    this.file.objectId = picture.objectId;
 
     this.addPicture(picture, true);
+    // INFO: picture 변경시마다 undoStack 리셋
+    this.lc.undoStack = [];
+    Entry.stateManager.removeAllPictureCommand();
 };
 
 p.addPicture = function(picture, isOriginal) {
@@ -128,15 +137,15 @@ p.addPicture = function(picture, isOriginal) {
         y: 270,
         width: dimension.width,
         height: dimension.height,
-        image: image
+        image: image,
     });
+
     this.lc.saveShape(shape, !isOriginal);
 
     image.onload = function() {
         this.lc.setTool(this.lc.tools.SelectShape);
         this.lc.tool.setShape(this.lc, shape);
     }.bind(this);
-
 };
 
 p.copy = function() {
@@ -177,12 +186,12 @@ p.updateEditMenu = function() {
     this._pasteButton.style.display = this.clipboard ? "block" : "none";
 };
 
-p.file_save = function() {
-    this.lc.trigger("dispose")
+p.file_save = function(taskParam) {
+    this.lc.trigger("dispose");
     var dataURL = this.lc.getImage().toDataURL();
     this.file_ = JSON.parse(JSON.stringify(this.file));
     Entry.dispatchEvent('saveCanvasImage',
-                        {file: this.file_, image: dataURL});
+                        {file: this.file_, image: dataURL, task: taskParam});
 
     this.file.modified = false;
 };
@@ -199,6 +208,8 @@ p.newPicture = function() {
     };
 
     newPicture.id = Entry.generateHash();
+    if (this.file && this.file.objectId)
+        newPicture.objectId = this.file.objectId;
     Entry.playground.addPicture(newPicture, true);
 };
 

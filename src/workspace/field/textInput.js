@@ -19,9 +19,11 @@ Entry.FieldTextInput = function(content, blockView, index) {
 
     this.position = content.position;
     this._contents = content;
+    this._isClearBG = content.clearBG || false;
     this._index = index;
     this.value = this.getValue()  || '';
     this._CONTENT_HEIGHT = this.getContentHeight();
+    this._font_size = 12;
 
     this.renderStart();
 };
@@ -33,36 +35,44 @@ Entry.Utils.inherit(Entry.Field, Entry.FieldTextInput);
         TEXT_Y_PADDING = 4;
 
     p.renderStart = function() {
-        if (this.svgGroup) $(this.svgGroup).remove();
         var blockView = this._blockView;
+        if (!this.svgGroup)
+            this.svgGroup = blockView.contentSvgGroup.elem("g");
+        if (!this.textElement)
+            this.textElement = this.svgGroup.elem("text", {
+                x: X_PADDING/2,
+                y: TEXT_Y_PADDING,
+                fill: this._contents.color || "black",
+                'font-size' : this._font_size + 'px'
+            });
+
         var that = this;
         var contents = this._contents;
 
-        this.svgGroup = blockView.contentSvgGroup.elem("g");
-        this.svgGroup.attr({
-            class: 'entry-input-field'
-        });
+        this.svgGroup.attr({ class: 'entry-input-field' });
 
-        this.textElement = this.svgGroup.elem("text", {
-            x: X_PADDING/2,
-            y: TEXT_Y_PADDING,
-            'font-size' : '12px'
-        });
-        this.textElement.textContent = this.truncate();
+        this._setTextValue();
 
         var width = this.getTextWidth();
 
         var y = this.position && this.position.y ? this.position.y : 0;
         var CONTENT_HEIGHT = this._CONTENT_HEIGHT;
         y -= CONTENT_HEIGHT/2;
-        this._header = this.svgGroup.elem("rect", {
-            width: width,
-            height: CONTENT_HEIGHT,
-            y: y,
-            rx: 3, ry: 3,
-            fill: "#fff",
-            'fill-opacity': 0.4
-        });
+        if (!this._header)
+            this._header = this.svgGroup.elem("rect", {
+                width: width,
+                height: CONTENT_HEIGHT,
+                y: y,
+                rx: 3, ry: 3,
+                fill: "#fff",
+                'fill-opacity': this._isClearBG ? 0 : 0.4
+            });
+        else {
+            this._header.setAttribute('width', width);
+        }
+
+        if (this._isClearBG)
+            $(this._header).css({ stroke: "none" });
 
         this.svgGroup.appendChild(this.textElement);
 
@@ -81,9 +91,9 @@ Entry.Utils.inherit(Entry.Field, Entry.FieldTextInput);
 
         var blockView = this._blockView;
 
-        var func = function() {
-            that.applyValue();
-            that.destroyOption();
+        var func = function(skipCommand) {
+            skipCommand !== true && that.applyValue();
+            that.destroyOption(skipCommand);
         };
 
         this._attachDisposeEvent(func);
@@ -105,7 +115,7 @@ Entry.Utils.inherit(Entry.Field, Entry.FieldTextInput);
             that.applyValue(e);
 
             if (exitKeys.indexOf(keyCode) > -1)
-                that.destroyOption();
+                that.destroyOption(undefined, true);
         });
 
         var pos = this.getAbsolutePosFromDocument();
@@ -120,12 +130,14 @@ Entry.Utils.inherit(Entry.Field, Entry.FieldTextInput);
         this.optionGroup.focus();
         var optionGroup = this.optionGroup[0];
         optionGroup.setSelectionRange(0, optionGroup.value.length, "backward");
+
+        this.optionDomCreated();
     };
 
     p.applyValue = function(event) {
         var value = this.optionGroup.val();
         this.setValue(value);
-        this.textElement.textContent = this.truncate();
+        this._setTextValue();
         this.resize();
     };
 
@@ -136,10 +148,17 @@ Entry.Utils.inherit(Entry.Field, Entry.FieldTextInput);
         this.optionGroup.css({width: width});
 
         this.box.set({width: width});
-        this._blockView.alignContent();
+        this._blockView.dAlignContent();
     };
 
     p.getTextWidth = function() {
-        return this.textElement.getBoundingClientRect().width + X_PADDING + 2;
+        return this.getTextBBox().width + X_PADDING + 2;
     };
+
+    p._setTextValue = function() {
+        var newValue = this._convert(this.getValue(), this.getValue());
+        if (this.textElement.textContent !== newValue)
+            this.textElement.textContent = newValue;
+    };
+
 })(Entry.FieldTextInput.prototype);

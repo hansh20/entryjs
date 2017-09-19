@@ -391,11 +391,17 @@ Entry.Painter.prototype.initPicture = function() {
             return;
 
         if (painter.file.modified) {
-            var save = confirm('수정된 내용을 저장하시겠습니까?');
-            if (save) {
-                painter.file_ = JSON.parse(JSON.stringify(painter.file));
-                painter.file_save(true);
-            }
+            entrylms.confirm(Lang.Menus.save_modified_shape).then(function(result){
+                if (result === true) {
+                    painter.file_ = JSON.parse(JSON.stringify(painter.file));
+                    painter.file_save(true);
+                }
+            });
+            // var save = confirm(Lang.Menus.save_modified_shape);
+            // if (save) {
+            //     painter.file_ = JSON.parse(JSON.stringify(painter.file));
+            //     painter.file_save(true);
+            // }
         }
         painter.file.modified = false;
         painter.clearCanvas(true);
@@ -999,7 +1005,7 @@ Entry.Painter.prototype.move_circle = function() {
 
 Entry.Painter.prototype.edit_copy = function() {
     if (!this.selectArea) {
-        alert('복사할 영역을 선택하세요.');
+        entrylms.alert('복사할 영역을 선택하세요.');
         return;
     }
     this.clearHandle();
@@ -1023,7 +1029,7 @@ Entry.Painter.prototype.edit_copy = function() {
 
 Entry.Painter.prototype.edit_cut = function() {
     if (!this.selectArea) {
-        alert('자를 영역을 선택하세요.');
+        entrylms.alert('자를 영역을 선택하세요.');
         return;
     }
     this.clearHandle();
@@ -1869,8 +1875,8 @@ Entry.Painter.prototype.generateView = function(painterView) {
 
         this.objectWidthInput = Entry.createElement('input', 'entryPainterAttrWidth');
         this.objectWidthInput.onblur = function() {
-            if (isNaN(this.value)) {
-                alert('숫자만 입력 가능합니다.');
+            if (!Entry.Utils.isNumber(this.value)) {
+                entrylms.alert('숫자만 입력 가능합니다.');
                 return false;
             }
 
@@ -1899,8 +1905,8 @@ Entry.Painter.prototype.generateView = function(painterView) {
 
         this.objectHeightInput = Entry.createElement('input', 'entryPainterAttrHeight');
         this.objectHeightInput.onblur = function() {
-            if (isNaN(this.value)) {
-                alert('숫자만 입력 가능합니다.');
+            if (!Entry.Utils.isNumber(this.value)) {
+                entrylms.alert('숫자만 입력 가능합니다.');
                 return false;
             }
             painter.handle.height = this.value;
@@ -1931,8 +1937,8 @@ Entry.Painter.prototype.generateView = function(painterView) {
 
         this.objectRotateInput = Entry.createElement('input', 'entryPainterAttrDegree');
         this.objectRotateInput.onblur = function() {
-            if (isNaN(this.value)) {
-                alert('숫자만 입력 가능합니다.');
+            if (!Entry.Utils.isNumber(this.value)) {
+                entrylms.alert('숫자만 입력 가능합니다.');
                 return false;
             }
 
@@ -2381,4 +2387,3 @@ Entry.Painter.prototype.selectToolbox = function(name){
             this.toggleCoordinator();
     }
 };
-

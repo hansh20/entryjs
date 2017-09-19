@@ -34,13 +34,11 @@ Entry.SVG.createElement = function (tag, options) {
             el.setAttributeNS(Entry.SVG.NS_XLINK, 'href', options.href);
             delete options.href;
         }
-        for (var key in options) {
+
+        for (var key in options)  {
             el.setAttribute(key, options[key]);
         }
     }
-
-    if (this instanceof SVGElement)
-        this.appendChild(el);
 
     //add util functions
     el.elem = Entry.SVG.createElement;
@@ -53,6 +51,9 @@ Entry.SVG.createElement = function (tag, options) {
 
     if (tag === "text")
        el.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space","preserve");
+
+    if (this instanceof SVGElement)
+        this.appendChild(el);
 
     return el;
 };
@@ -81,7 +82,8 @@ Entry.SVG.addClass = function(className) {
     var classAttr = this.getAttribute('class');
     for (var i = 0; i < arguments.length; i++) {
         var className = arguments[i];
-        if (!this.hasClass(className)) classAttr += " " + className;
+        if (!this.hasClass(className))
+            classAttr += " " + className;
     }
 
     this.setAttribute('class', classAttr);

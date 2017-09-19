@@ -44,6 +44,8 @@ Entry.PropertyPanel = function() {
     };
 
     p.addMode = function(mode, contentObj) {
+        if (this.modes[mode])
+            this.removeMode(mode);
 
         var contentDom = contentObj.getView();
         // will be removed after apply new Dom class
@@ -59,6 +61,9 @@ Entry.PropertyPanel = function() {
         tabDom.bind('click',function() {
             that.select(mode);
         });
+
+        if(mode == "console")
+            contentObj.codeMirror.refresh();
 
         if (this.modes[mode]) {
             this.modes[mode].tabDom.remove();
@@ -99,6 +104,8 @@ Entry.PropertyPanel = function() {
     }
 
     p.resize = function(canvasSize) {
+        var selected = this.selected;
+        if (!selected) return;
         var canvasHeight = canvasSize*9/16;
         this._view.css({
             width: canvasSize + 'px',
@@ -111,14 +118,13 @@ Entry.PropertyPanel = function() {
 
         Entry.dispatchEvent('windowResized');
 
-        var selected = this.selected;
-        var modeResize  = this.modes[selected].obj.resize;
+        var obj = this.modes[selected].obj;
         if (selected == 'hw') {
             if (this.modes.hw.obj.listPorts)
-                this.modes[selected].obj.resizeList();
-            else this.modes[selected].obj.resize();
+                obj.resizeList();
+            else obj.resize && obj.resize();
         } else {
-            this.modes[selected].obj.resize();
+            obj.resize && obj.resize();
         }
     };
 
@@ -127,9 +133,12 @@ Entry.PropertyPanel = function() {
             var mode = this.modes[key];
             mode.tabDom.removeClass("selected");
             mode.contentDom.addClass("entryRemove");
+            $(mode.contentDom).detach();
             mode.obj.visible = false;
         }
+
         var selected = this.modes[modeName];
+        $(this._contentView).append(selected.contentDom);
         selected.tabDom.addClass("selected");
         selected.contentDom.removeClass("entryRemove");
         if(selected.obj.resize)
@@ -141,34 +150,39 @@ Entry.PropertyPanel = function() {
     p.initializeSplitter = function(splitter) {
         var that = this;
         splitter.bind('mousedown touchstart', function(e) {
+            var container = Entry.container;
             that._cover.removeClass('entryRemove');
             that._cover._isVisible = true;
-            Entry.container.disableSort();
-            Entry.container.splitterEnable = true;
+            container.splitterEnable = true;
             if (Entry.documentMousemove) {
-                Entry.container.resizeEvent = Entry.documentMousemove.attach(this, function(e) {
-                    if (Entry.container.splitterEnable) {
+                container.resizeEvent = Entry.documentMousemove.attach(this, function(e) {
+                    if (container.splitterEnable) {
                         Entry.resizeElement({
                             canvasWidth: e.clientX || e.x
                         });
                     }
                 });
             }
+            $(document).bind(
+                'mouseup.container:splitter touchend.container:splitter',
+                func
+            );
         });
 
-        $(document).bind('mouseup touchend', function(e) {
-            var listener = Entry.container.resizeEvent
+        var func = function(e) {
+            var container = Entry.container;
+            var listener = container.resizeEvent;
             if (listener) {
-                Entry.container.splitterEnable = false;
+                container.splitterEnable = false;
                 Entry.documentMousemove.detach(listener);
-                delete Entry.container.resizeEvent;
+                delete container.resizeEvent;
             }
             if (that._cover._isVisible) {
                 that._cover._isVisible = false;
                 that._cover.addClass('entryRemove');
             }
-            Entry.container.enableSort();
-        });
+            $(document).unbind('.container:splitter');
+        };
     };
 
 })(Entry.PropertyPanel.prototype);

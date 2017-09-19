@@ -36,16 +36,17 @@ Entry.init = function(container, options) {
     this.initialize_();
     /** @type {!Element} */
     this.view_ = container;
+    $(this.view_).addClass("entry");
+    if (this.type === "minimize")
+        $(this.view_).addClass(this.type);
     if (this.device === 'tablet')
-        this.view_.setAttribute('class', 'entry tablet');
-    else
-        this.view_.setAttribute('class', 'entry');
+        $(this.view_).addClass("tablet");
 
     Entry.initFonts(options.fonts);
     this.createDom(container, this.type);
     this.loadInterfaceState();
     this.overridePrototype();
-    this.maxCloneLimit = 302;
+    this.maxCloneLimit = 360;
     this.cloudSavable = true;
     this.startTime = new Date().getTime();
 
@@ -69,13 +70,11 @@ Entry.init = function(container, options) {
     });
 
     if (Entry.getBrowserType().substr(0,2) == 'IE' && !window.flashaudio) {
-        createjs.FlashAudioPlugin.swfPath = this.mediaFilePath + "media/";
+        createjs.FlashAudioPlugin.swfPath = this.mediaFilePath + 'media/';
         createjs.Sound.registerPlugins([createjs.FlashAudioPlugin]);
-        //createjs.Sound.registerPlugins([createjs.WebAudioPlugin]);
-        //createjs.Sound.registerPlugins([createjs.HTMLAudioPlugin]);
         window.flashaudio = true;
     } else {
-        createjs.Sound.registerPlugins([createjs.WebAudioPlugin]);
+        createjs.Sound.registerPlugins([createjs.WebAudioPlugin, createjs.HTMLAudioPlugin]);
     }
 
     Entry.soundQueue = new createjs.LoadQueue();
@@ -91,7 +90,10 @@ Entry.init = function(container, options) {
         Entry.mediaFilePath + 'sounds/delete.wav'], 'entryDelete');
 
     createjs.Sound.stop();
+};
 
+Entry.changeContainer = function(container) {
+    container.appendChild(this.view_);
 };
 
 Entry.loadAudio_ = function(filenames, name) {
@@ -126,7 +128,7 @@ Entry.initialize_ = function() {
      */
     this.stage = new Entry.Stage();
 
-    if (Entry.engine)
+    if (Entry.engine && Entry.engine.projectTimer)
         Entry.engine.clearTimer();
     /**
      * Initialize engine for run.
@@ -139,7 +141,9 @@ Entry.initialize_ = function() {
      * Initialize PropertyPanel.
      * @type {!object}
      */
-    this.propertyPanel = new Entry.PropertyPanel();
+
+    if (this.type !== "minimize")
+        this.propertyPanel = new Entry.PropertyPanel();
 
     /**
      * Initialize container for objects.
@@ -164,7 +168,7 @@ Entry.initialize_ = function() {
      */
     this.variableContainer = new Entry.VariableContainer();
 
-    this.commander = new Entry.Commander(this.type);
+    this.commander = new Entry.Commander(this.type, this.doNotSkipAny);
 
     /**
      * Initialize scenes.
@@ -283,8 +287,8 @@ Entry.createDom = function(container, option) {
         this.propertyPanel.select("object");
         this.helper.bindWorkspace(this.playground.mainWorkspace);
     } else if (option == 'minimize') {
-        var canvas = Entry.createElement('canvas');
-        canvas.className = 'entryCanvasWorkspace';
+       var canvas = Entry.createElement('canvas');
+        canvas.className = 'entryCanvasWorkspace minimize';
         canvas.id = 'entryCanvas';
         canvas.width = 640;
         canvas.height = 360;
@@ -343,6 +347,8 @@ Entry.createDom = function(container, option) {
  * @param {?number} FPS
  */
 Entry.start = function(FPS) {
+    if (Entry.type === "invisible")
+        return;
     /** @type {number} */
     if (!this.FPS)
         this.FPS = 60;
@@ -350,13 +356,23 @@ Entry.start = function(FPS) {
     Entry.engine.start(this.FPS);
 };
 
+Entry.stop = function() {
+    if (Entry.type === "invisible")
+        return;
+    this.FPS = null;
+    Entry.engine.stop();
+}
+
 /**
  * Parse init options
  * @param {!object} options for parse
  */
 Entry.parseOptions = function(options) {
     /** @type {string} */
-    this.type = options.type;
+    this.type = options.type || this.type;
+
+    this.hashId = options.hashId || this.hasId;
+
     if (options.device)
         this.device = options.device;
 
@@ -406,6 +422,10 @@ Entry.parseOptions = function(options) {
     if (this.listEnable === undefined)
         this.listEnable = true;
 
+    this.doCommandAll = options.doCommandAll;
+    if (this.doCommandAll === undefined)
+        this.doCommandAll = false;
+
     this.hasVariableManager = options.hasvariablemanager;
     if (!(this.variableEnable || this.messageEnable ||
           this.listEnable || this.functionEnable))
@@ -413,12 +433,28 @@ Entry.parseOptions = function(options) {
     else if (this.hasVariableManager === undefined)
         this.hasVariableManager = true;
 
-    this.isForLecture = options.isForLecture;
+    this.readOnly = options.readOnly || false;
+    if (this.readOnly) {
+        this.soundEditable = a.sceneEditable = this.objectAddable = false;
+    }
+
+    if (options.isForLecture)
+        this.isForLecture = options.isForLecture;
+    if (options.textCodingEnable)
+        this.textCodingEnable = options.textCodingEnable;
 };
 
 
 Entry.initFonts = function(fonts) {
     this.fonts = fonts;
     if (!fonts) this.fonts = [];
+};
 
+Entry.reloadOption = function(options) {
+    this.options = options;
+    this.parseOptions(options);
+    this.playground.applyTabOption();
+    this.variableContainer.applyOption();
+    this.engine.applyOption();
+    this.commander.applyOption();
 };

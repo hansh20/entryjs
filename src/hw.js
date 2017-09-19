@@ -15,7 +15,6 @@ Entry.HW = function() {
     this.connectTrial = 0;
     this.isFirstConnect = true;
     this.requireVerion = 'v1.6.1';
-    this.downloadPath = "http://download.play-entry.org/apps/Entry_HW_1.6.3_Setup.exe";
     this.hwPopupCreate();
     this.initSocket();
     this.connected = false;
@@ -31,7 +30,6 @@ Entry.HW = function() {
 
     this.hwInfo = {
         '1.1': Entry.Arduino,
-        '1.9': Entry.ArduinoExt,
         '1.2': Entry.SensorBoard,
         '1.3': Entry.CODEino,
         '1.4': Entry.joystick,
@@ -39,25 +37,38 @@ Entry.HW = function() {
         '1.6': Entry.nemoino,
         '1.7': Entry.Xbot,
         '1.8': Entry.ardublock,
+        '1.9': Entry.ArduinoExt,
+        '1.10': Entry.ArduinoNano,
         '1.A': Entry.Cobl,
+        '1.B': Entry.Blacksmith,
         '2.4': Entry.Hamster,
         '2.5': Entry.Albert,
+        '2.9': Entry.Turtle,
+        '2.FF': Entry.Roboid,
         '3.1': Entry.Bitbrick,
         '4.2': Entry.Arduino,
         '5.1': Entry.Neobot,
+        '6.1': Entry.mkboard,
         '7.1': Entry.Robotis_carCont,
         '7.2': Entry.Robotis_openCM70,
         '8.1': Entry.Arduino,
-        '10.1': Entry.Roborobo_Roduino,
-        '10.2': Entry.Roborobo_SchoolKit,
-        '12.1': Entry.EV3,
-        'B.1': Entry.Codestar,
+        '9.1': Entry.iboard,
         'A.1': Entry.SmartBoard,
+        'B.1': Entry.Codestar,
         'C.1': Entry.DaduBlock,
+        'C.2': Entry.DaduBlock_Car,
         'D.1': Entry.robotori,
         'F.1': Entry.byrobot_dronefighter_controller,
         'F.2': Entry.byrobot_dronefighter_drive,
         'F.3': Entry.byrobot_dronefighter_flight,
+        '10.1': Entry.Roborobo_Roduino,
+        '10.2': Entry.Roborobo_SchoolKit,
+        '12.1': Entry.EV3,
+        '13.1': Entry.rokoboard,
+        '14.1': Entry.Chocopi,
+        '15.1': Entry.coconut,
+        '16.1': Entry.MODI,
+        '18.1': Entry.Altino,
     };
 };
 
@@ -110,7 +121,7 @@ p.connectWebSocket = function(url, option) {
 
     socket.on('disconnect', function() {
         hw.initSocket();
-    }); 
+    });
 
     return socket;
 }
@@ -123,21 +134,21 @@ p.initSocket = function() {
 
         if(this.tlsSocketIo) {
             this.tlsSocketIo.removeAllListeners();
-        }        
+        }
         if(this.socketIo) {
             this.socketIo.removeAllListeners();
         }
-        
+
         if(!this.isOpenHardware) {
             this.checkOldClient();
         }
         if(location.protocol.indexOf('https') > -1) {
             this.tlsSocketIo = this.connectWebSocket('https://hardware.play-entry.org:23518', { query:{ 'client': true, 'roomId' : this.sessionRoomId } });
-        } 
+        }
         // 일단 보류(?)
         /*else if(Entry.isOffline){
             this.tlsSocketIo = this.connectWebSocket('http://127.0.0.1:23518', { query:{'client': true, 'roomId' : this.sessionRoomId } });
-        }*/ 
+        }*/
         else {
             try {
                 this.socketIo = this.connectWebSocket('http://127.0.0.1:23518', { query:{'client': true, 'roomId' : this.sessionRoomId } });
@@ -173,13 +184,13 @@ p.openHardwareProgram = function() {
     this.isOpenHardware = true;
     Entry.HW.TRIAL_LIMIT = 5;
     this.executeHardware();
-    
+
     if(!this.socket || !this.socket.connected) {
         setTimeout(function() {
             hw.initSocket();
         }, 1000);
     }
-}
+};
 
 p.initHardware = function(socket) {
     this.socket = socket;
@@ -189,14 +200,14 @@ p.initHardware = function(socket) {
     if (Entry.playground && Entry.playground.object) {
         Entry.playground.setMenu(Entry.playground.object.objectType);
     }
-}
+};
 
 p.disconnectHardware = function() {
-    Entry.propertyPanel.removeMode("hw");
+    Entry.propertyPanel && Entry.propertyPanel.removeMode("hw");
     this.selectedDevice = undefined;
     this.hwModule = undefined;
     Entry.dispatchEvent("hwChanged");
-}
+};
 
 p.disconnectedSocket = function() {
     this.tlsSocketIo.close();
@@ -204,7 +215,7 @@ p.disconnectedSocket = function() {
         this.socketIo.close();
     }
 
-    Entry.propertyPanel.removeMode("hw");
+    Entry.propertyPanel && Entry.propertyPanel.removeMode("hw");
     this.socket = undefined;
     this.connectTrial = 0;
     this.connected = false;
@@ -289,7 +300,7 @@ p.update = function() {
 
 p.updatePortData = function(data) {
     this.portData = data;
-    if (this.hwMonitor && Entry.propertyPanel.selected == 'hw') {
+    if (this.hwMonitor && Entry.propertyPanel && Entry.propertyPanel.selected == 'hw') {
         this.hwMonitor.update();
     }
 };
@@ -301,23 +312,20 @@ p.closeConnection = function() {
 };
 
 p.downloadConnector = function() {
-    var win = window.open(this.downloadPath, '_blank');
-    win.focus();
+    Entry.dispatchEvent("hwDownload", "hardware");
 };
 
 p.downloadGuide = function() {
-    var url = "http://download.play-entry.org/data/%EC%97%94%ED%8A%B8%EB%A6%AC%20%ED%95%98%EB%93%9C%EC%9B%A8%EC%96%B4%20%EC%97%B0%EA%B2%B0%20%EB%A7%A4%EB%89%B4%EC%96%BC(%EC%98%A8%EB%9D%BC%EC%9D%B8%EC%9A%A9).pdf";
-    var anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = 'download';
-    anchor.click();
-    anchor = undefined;
+    Entry.dispatchEvent("hwDownload", "manual");
+    // var url = "http://download.play-entry.org/data/hardware_manual.zip";
+    // window.open(url, 'download');
 };
 
 p.downloadSource = function() {
-    var url = "http://play-entry.com/down/board.ino";
-    var win = window.open(url, '_blank');
-    win.focus();
+    Entry.dispatchEvent("hwDownload", "ino");
+    // var url = "http://play-entry.com/down/board.ino";
+    // var win = window.open(url, '_blank');
+    // win.focus();
 };
 
 p.setZero = function() {
@@ -330,8 +338,12 @@ p.checkDevice = function(data, version) {
     if (data.company === undefined)
         return;
     var key = [Entry.Utils.convertIntToHex(data.company), '.', Entry.Utils.convertIntToHex(data.model)].join('');
-    if (key == this.selectedDevice)
+    if (key == this.selectedDevice) {
+        if (this.hwModule && this.hwModule.dataHandler) {
+            this.hwModule.dataHandler(data);
+        }
         return;
+    }
 
     if(Entry.Utils.isNewVersion(version, this.requireVerion)) {
         this.popupHelper.show('newVersion', true);
@@ -340,12 +352,10 @@ p.checkDevice = function(data, version) {
     this.selectedDevice = key;
     this.hwModule = this.hwInfo[key];
     Entry.dispatchEvent("hwChanged");
-    Entry.toast.success(
-        "하드웨어 연결 성공",
-        "하드웨어 아이콘을 더블클릭하면, 센서값만 확인할 수 있습니다.",
-        false
-    );
-    if (this.hwModule.monitorTemplate) {
+
+    var descMsg = '';
+    if (Entry.propertyPanel && this.hwModule.monitorTemplate) {
+        descMsg = Lang.Msgs.hw_connection_success_desc;
         if(!this.hwMonitor) {
             this.hwMonitor = new Entry.HWMonitor(this.hwModule);
         } else {
@@ -365,7 +375,13 @@ p.checkDevice = function(data, version) {
         } else {
             this.hwMonitor.generateView();
         }
+    } else {
+        descMsg = Lang.Msgs.hw_connection_success_desc2;
     }
+    Entry.toast.success(
+        Lang.Msgs.hw_connection_success,
+        descMsg
+    )
 };
 
 p.banHW = function() {

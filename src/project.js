@@ -5,13 +5,13 @@ Entry.getStartProject = function(mediaFilePath) {
         "category" : "기타",
         "scenes" : [
             {
-                "name" : "장면 1",
+                "name" : Lang.Blocks.SCENE + " 1",
                 "id" : "7dwq"
             }
         ],
         "variables" : [
             {
-                "name" : "초시계",
+                "name" : Lang.Workspace.Variable_Timer,
                 "id" : "brih",
                 "visible" : false,
                 "value" : "0",
@@ -23,7 +23,7 @@ Entry.getStartProject = function(mediaFilePath) {
                 "isCloud" : false
             },
             {
-                "name" : "대답",
+                "name" : Lang.Blocks.VARIABLE_get_canvas_input_value,
                 "id" : "1vu8",
                 "visible" : false,
                 "value" : "0",
@@ -39,6 +39,10 @@ Entry.getStartProject = function(mediaFilePath) {
             {
                 "id" : "7y0y",
                 "name" : "엔트리봇",
+                "label": {
+                    "ko": "엔트리봇",
+                    "en": "Entrybot"
+                },
                 "script" : [
                     [
                         {
@@ -67,7 +71,11 @@ Entry.getStartProject = function(mediaFilePath) {
                             "ext" : ".mp3",
                             "id" : "8el5",
                             "fileurl" : mediaFilePath + "media/bark.mp3",
-                            "name" : "강아지 짖는소리"
+                            "name" : "강아지 짖는소리",
+                            "label": {
+                                "ko": "강아지 짖는소리",
+                                "en": "Doggi's Bark"
+                            }
                         }
                     ],
                     "pictures" : [

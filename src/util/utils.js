@@ -10,8 +10,67 @@ Entry.overridePrototype = function() {
     Number.prototype.mod = function(n) {
             return ((this%n)+n)%n;
     };
+
+    //polyfill
+    if (!String.prototype.repeat) {
+      String.prototype.repeat = function(count) {
+        'use strict';
+        if (this == null) {
+          throw new TypeError('can\'t convert ' + this + ' to object');
+        }
+        var str = '' + this;
+        count = +count;
+        if (count != count) {
+          count = 0;
+        }
+        if (count < 0) {
+          throw new RangeError('repeat count must be non-negative');
+        }
+        if (count == Infinity) {
+          throw new RangeError('repeat count must be less than infinity');
+        }
+        count = Math.floor(count);
+        if (str.length == 0 || count == 0) {
+          return '';
+        }
+        // Ensuring count is a 31-bit integer allows us to heavily optimize the
+        // main part. But anyway, most current (August 2014) browsers can't handle
+        // strings 1 << 28 chars or longer, so:
+        if (str.length * count >= 1 << 28) {
+          throw new RangeError('repeat count must not overflow maximum string size');
+        }
+        var rpt = '';
+        for (;;) {
+          if ((count & 1) == 1) {
+            rpt += str;
+          }
+          count >>>= 1;
+          if (count == 0) {
+            break;
+          }
+          str += str;
+        }
+        // Could we try:
+        // return Array(count + 1).join(this);
+        return rpt;
+      }
+    }
 };
 
+// INFO: 기존에 사용하던 isNaN에는 숫자 체크의 문자가 있을수 있기때문에 regex로 체크하는 로직으로 변경
+// isNaN 문제는 https://developer.mozilla.org/ko/docs/Web/JavaScript/Reference/Global_Objects/isNaN
+// 에서 확인.
+Entry.Utils.isNumber = function(num) {
+    if(typeof num === 'number') {
+        return true;
+    }
+    var reg = /^-?\d+\.?\d*$/;
+    if(typeof num === 'string' && reg.test(num)) {
+        return true;
+    } else {
+        return false;
+    }
+}
 
 Entry.Utils.generateId = function() {
     return ("0000"+(Math.random()*Math.pow(36,4)<<0).toString(36)).substr(-4);
@@ -75,6 +134,26 @@ Entry.Utils.colorLighten = function(color, amount) {
     hsl.l += amount / 100;
     hsl.l = clamp01(hsl.l);
     return Entry.Utils.hslToHex(hsl);
+};
+
+Entry.Utils._EmphasizeColorMap = {
+    "#3BBD70": "#5BC982",
+    "#498DEB": "#62A5F4",
+    "#A751E3": "#C08FF7",
+    "#EC4466": "#F46487",
+    "#FF9E20": "#FFB05A",
+    "#A4D01D": "#C4DD31",
+    "#00979D": "#09BAB5",
+    "#FFD974": "#FCDA90",
+    "#E457DC": "#F279F2",
+    "#CC7337": "#DD884E",
+    "#AEB8FF": "#C0CBFF",
+    "#FFCA36": "#F2C670",
+};
+
+Entry.Utils.getEmphasizeColor = function(color) {
+    var colorKey = color.toUpperCase();
+    return Entry.Utils._EmphasizeColorMap[colorKey] || color;
 };
 
 // Take input from [0, n] and return it as [0, 1]
@@ -221,7 +300,7 @@ Entry.Utils.bindGlobalEvent = function(options) {
     if (options.indexOf('mousedown') > -1) {
         if (Entry.documentMousedown) {
             doc.off('mousedown');
-            Entry.documentMousedown.clear()
+            Entry.documentMousedown.clear();
         }
         Entry.documentMousedown = new Entry.Event(window);
         doc.on('mousedown', (function(e) {
@@ -232,7 +311,7 @@ Entry.Utils.bindGlobalEvent = function(options) {
     if (options.indexOf('mousemove') > -1) {
         if (Entry.documentMousemove) {
             doc.off('touchmove mousemove');
-            Entry.documentMousemove.clear()
+            Entry.documentMousemove.clear();
         }
 
         Entry.mouseCoordinate = {};
@@ -249,7 +328,7 @@ Entry.Utils.bindGlobalEvent = function(options) {
     if (options.indexOf('keydown') > -1) {
         if (Entry.keyPressed)  {
             doc.off('keydown');
-            Entry.keyPressed.clear()
+            Entry.keyPressed.clear();
         }
         Entry.pressedKeys = [];
         Entry.keyPressed = new Entry.Event(window);
@@ -264,7 +343,7 @@ Entry.Utils.bindGlobalEvent = function(options) {
     if (options.indexOf('keyup') > -1) {
         if (Entry.keyUpped) {
             doc.off('keyup');
-            Entry.keyUpped.clear()
+            Entry.keyUpped.clear();
         }
         Entry.keyUpped = new Entry.Event(window);
         doc.on('keyup', (function(e) {
@@ -276,7 +355,7 @@ Entry.Utils.bindGlobalEvent = function(options) {
     }
 
     if (options.indexOf('dispose') > -1) {
-        if (Entry.disposeEvent) Entry.disposeEvent.clear()
+        if (Entry.disposeEvent) Entry.disposeEvent.clear();
         Entry.disposeEvent = new Entry.Event(window);
         if (Entry.documentMousedown)
             Entry.documentMousedown.attach(this, function(e) {
@@ -353,25 +432,34 @@ Entry.createElement = function(type, elementId) {
         return this.className.match(new RegExp('(\\s|^)'+className+'(\\s|$)'));
     };
     element.addClass = function(className) {
+        var current = this.className;
         for (var i = 0; i < arguments.length; i++) {
             var className = arguments[i];
-            if (!this.hasClass(className)) this.className += " " + className;
+            if (!this.hasClass(className))
+                current += " " + className;
         }
+        this.className = current;
     };
     element.removeClass = function(className) {
+        var current = this.className;
         for (var i = 0; i < arguments.length; i++) {
             var className = arguments[i];
             if (this.hasClass(className)) {
                 var reg = new RegExp('(\\s|^)'+className+'(\\s|$)');
-                this.className=this.className.replace(reg,' ');
+                current = current.replace(reg,' ');
             }
         }
+        this.className = current;
     };
     element.bindOnClick = function(func) {
         $(this).on('click tab', function(e) {
+            if (element.disabled) return;
             e.stopImmediatePropagation();
             func.call(this, e);
         });
+    };
+    element.unBindOnClick = function(func) {
+        $(this).off('click tab');
     };
     return element;
 };
@@ -384,7 +472,7 @@ Entry.makeAutolink = function(html) {
     } else {
         return '';
     }
-}
+};
 
 /**
  * Generate random hash
@@ -400,14 +488,14 @@ Entry.generateHash = function() {
  * @param {function} fn
  */
 Entry.addEventListener = function(eventName, fn) {
-    if (!this.events_)
-        this.events_ = {};
-     if (!this.events_[eventName]) {
-        this.events_[eventName] = [];
+    if (!this.events_) this.events_ = {};
+
+    if (!this.events_[eventName]) {
+       this.events_[eventName] = [];
     }
-    if (fn instanceof Function) {
+    if (fn instanceof Function)
         this.events_[eventName].push(fn);
-    }
+
     return true;
 };
 
@@ -417,13 +505,20 @@ Entry.addEventListener = function(eventName, fn) {
  * @param {?} params
  */
 Entry.dispatchEvent = function(eventName, params) {
-    if (!this.events_)
+    if (!this.events_) {
         this.events_ = {};
-    if (!this.events_[eventName])
         return;
-    for (var index = 0, l = this.events_[eventName].length; index < l; index++) {
-        this.events_[eventName][index].call(window, params);
     }
+
+    var events = this.events_[eventName];
+    if (!events || events.length === 0) return;
+
+    var args = Array.prototype.slice.call(arguments);
+    args.shift();
+
+    events.forEach(function(func) {
+        func.apply(window, args);
+    });
 };
 
 /**
@@ -459,7 +554,7 @@ Entry.removeAllEventListener = function(eventName) {
  * @param {!number} b
  */
 Entry.addTwoNumber = function(a, b) {
-  if (isNaN(a) || isNaN(b)) {
+  if (!Entry.Utils.isNumber(a) || !Entry.Utils.isNumber(b)) {
     return a+b;
   }
   a += ''; b+= '';
@@ -587,9 +682,9 @@ Entry.getElementsByClassName = function(cl) {
  * @return {Boolean||Number} arr
  */
 Entry.parseNumber = function(value) {
-    if (typeof value == "string" && !isNaN(Number(value)))
+    if (typeof value == "string" && Entry.Utils.isNumber(value))
         return Number(value);
-    else if (typeof value == "number" && !isNaN(Number(value)))
+    else if (typeof value == "number" && Entry.Utils.isNumber(value))
         return value;
     return false;
 };
@@ -720,15 +815,31 @@ Entry.nodeListToArray = function(nl) {
     return arr;
 };
 
-Entry.computeInputWidth = function(value){
-    var tmp = document.createElement("span");
-    tmp.className = "tmp-element";
-    tmp.innerHTML = value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    document.body.appendChild(tmp);
-    var theWidth = tmp.offsetWidth;
-    document.body.removeChild(tmp);
-    return Number(theWidth + 10) + 'px';
-};
+Entry.computeInputWidth = (function() {
+    var elem;
+    var _cache = {};
+    return function(value) {
+        value = value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+        var cached = _cache[value];
+        if (cached) return cached;
+        else {
+            elem = elem || document.getElementById('entryInputForComputeWidth');
+            if (!elem) {
+                elem = document.createElement("span");
+                elem.setAttribute('id', 'entryInputForComputeWidth');
+                elem.className = "elem-element";
+                document.body.appendChild(elem);
+            }
+
+            elem.innerHTML = value;
+            var ret = Number(elem.offsetWidth + 10) + 'px';
+
+            if (window.fontLoaded) _cache[value] = ret;
+            return ret;
+        }
+    };
+})();
 
 Entry.isArrowOrBackspace = function(keyCode){
     var codes = [37,38,39,40, 8];
@@ -766,7 +877,7 @@ Entry.factorial = function(n){
 };
 
 Entry.getListRealIndex = function(index, list){
-    if (isNaN(index)) {
+    if (!Entry.Utils.isNumber(index)) {
         switch(index) {
             case 'FIRST':
                 index = 1;
@@ -790,13 +901,13 @@ Entry.toDegrees = function(radians){
     return radians * 180 / Math.PI;
 };
 
-Entry.getPicturesJSON = function (pictures) {
+Entry.getPicturesJSON = function (pictures, isClone) {
     var json = [];
     for (var i=0, len=pictures.length; i<len; i++) {
         var p = pictures[i];
         var o = {};
         o._id = p._id;
-        o.id = p.id;
+        o.id = isClone ? Entry.generateHash() : p.id;
         o.dimension = p.dimension;
         o.filename = p.filename;
         o.fileurl = p.fileurl;
@@ -807,7 +918,7 @@ Entry.getPicturesJSON = function (pictures) {
     return json;
 };
 
-Entry.getSoundsJSON = function (sounds) {
+Entry.getSoundsJSON = function (sounds, isClone) {
     var json = [];
     for (var i=0, len=sounds.length; i<len; i++) {
         var s = sounds[i];
@@ -815,7 +926,7 @@ Entry.getSoundsJSON = function (sounds) {
         o._id = s._id;
         o.duration = s.duration;
         o.ext = s.ext;
-        o.id = s.id;
+        o.id = isClone ? Entry.generateHash() : s.id;
         o.filename = s.filename;
         o.fileurl = s.fileurl;
         o.name = s.name;
@@ -880,6 +991,8 @@ Entry.setCloneBrush = function (sprite, parentBrush) {
     var shape = new createjs.Shape(brush);
     Entry.stage.selectedObjectContainer.addChild(shape);
 
+    brush.stop = parentBrush.stop;
+
     if (sprite.brush)
         sprite.brush = null;
     sprite.brush = brush;
@@ -887,6 +1000,7 @@ Entry.setCloneBrush = function (sprite, parentBrush) {
     if (sprite.shape)
         sprite.shape = null;
     sprite.shape = shape;
+
 };
 
 Entry.isFloat = function (num) {
@@ -904,7 +1018,7 @@ Entry.getStringIndex = function(str) {
     var len = str.length;
     for (var i=len-1; i>0; --i) {
         var ch = str.charAt(i);
-        if (!isNaN(ch)) {
+        if (Entry.Utils.isNumber(ch)) {
             num.unshift(ch);
             idx = i;
         } else {
@@ -969,7 +1083,7 @@ Entry.getMaxFloatPoint = function(numbers) {
 };
 
 Entry.convertToRoundedDecimals = function (value, decimals) {
-    if (isNaN(value) || !this.isFloat(value))
+    if (!Entry.Utils.isNumber(value) || !this.isFloat(value))
         return value;
     else
         return Number(Math.round(value+'e'+decimals)+'e-'+decimals);
@@ -1000,11 +1114,19 @@ Entry.isEmpty = function(obj) {
 Entry.Utils.disableContextmenu = function(node) {
     if (!node) return;
 
-    $(node).on('contextmenu', function(e){
-        e.stopPropagation();
-        e.preventDefault();
-        return false;
-    });
+    $(node).on('contextmenu', this.contextPreventFunction);
+};
+
+Entry.Utils.contextPreventFunction = function(e) {
+    e.stopPropagation();
+    e.preventDefault();
+    return false;
+};
+
+Entry.Utils.enableContextmenu = function(node) {
+    if (!node) return;
+
+    $(node).off('contextmenu', this.contextPreventFunction);
 };
 
 Entry.Utils.isRightButton = function(e) {
@@ -1035,7 +1157,7 @@ Entry.Utils.isFunction = function(fn) {
 };
 
 Entry.Utils.addFilters = function (boardSvgDom, suffix) {
-        var defs = boardSvgDom.elem('defs');
+    var defs = boardSvgDom.elem('defs');
 
     //trashcan filter
     var trashCanFilter = defs.elem('filter', {'id': 'entryTrashcanFilter_' + suffix});
@@ -1131,33 +1253,38 @@ Entry.Utils.xmlToJsonData = function(xml) {
     return result;
 };
 
-Entry.Utils.stopProjectWithToast = function(scope, message, isHide) {
+Entry.Utils.stopProjectWithToast = function(scope, message, error) {
     var block = scope.block;
     message = message || '런타임 에러 발생';
-    if (Entry.toast && !isHide)
+
+    var engine = Entry.engine;
+
+    engine && engine.toggleStop();
+
+    if (Entry.type === 'workspace') {
+        if (scope.block && 'funcBlock' in scope.block) {
+            block = scope.block.funcBlock;
+        } else if (scope.funcExecutor){
+            block = scope.funcExecutor.scope.block;
+            Entry.Func.edit(scope.type);
+        }
+
+        if (block) {
+            var id = block.getCode().object && block.getCode().object.id;
+            if (id) Entry.container.selectObject(block.getCode().object.id, true);
+            var view = block.view;
+            view && view.getBoard().activateBlock(block);
+        }
+    }
+
+    if (Entry.toast) {
         Entry.toast.alert(
             Lang.Msgs.warn,
             Lang.Workspace.check_runtime_error,
             true
         );
-
-    if (Entry.engine)
-        Entry.engine.toggleStop();
-
-    if (Entry.type === 'workspace') {
-        if(scope.block && 'funcBlock' in scope.block) {
-            block = scope.block.funcBlock;
-        } else if(scope.funcExecutor){
-            block = scope.funcExecutor.scope.block;
-            var funcName = scope.type.replace('func_', '');
-            Entry.Func.edit(Entry.variableContainer.functions_[funcName]);
-        }
-
-        if(block) {
-            Entry.container.selectObject(block.getCode().object.id, true);
-            block.view.getBoard().activateBlock(block);
-        }
     }
+
     throw new Error(message);
 };
 
@@ -1262,6 +1389,7 @@ Entry.isMobile = function() {
 Entry.Utils.convertMouseEvent = function(e) {
     if (e.originalEvent && e.originalEvent.touches)
         return e.originalEvent.touches[0];
+    else if (e.changedTouches) return e.changedTouches[0];
     else return e;
 }
 
@@ -1272,6 +1400,22 @@ Entry.Utils.convertIntToHex = function(num) {
 Entry.Utils.hasSpecialCharacter = function(str) {
     var reg = /!|@|#|\$|%|\^|&|\*|\(|\)|\+|=|-|\[|\]|\\|\'|;|,|\.|\/|{|}|\||\"|:|<|>|\?/g;
     return reg.test(str);
+}
+
+Entry.Utils.debounce = function(func, wait, immediate) {
+    var timeout;
+    return function() {
+        var context = this, args = arguments;
+        var later = function() {
+            timeout = null;
+            if (!immediate) func.apply(context, args);
+        };
+        var callNow = immediate && !timeout;
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+        if (callNow) func.apply(context, args);
+        return timeout;
+    };
 }
 
 Entry.Utils.isNewVersion = function(old_version, new_version) {
@@ -1301,3 +1445,245 @@ Entry.Utils.isNewVersion = function(old_version, new_version) {
         return false;
     }
 }
+
+Entry.Utils.getBlockCategory = (function() {
+    var map = {};
+    var allBlocks;
+    return function(blockType) {
+        if (!blockType) return;
+
+        if (map[blockType])
+            return map[blockType];
+
+        if (!allBlocks)
+            allBlocks = EntryStatic.getAllBlocks();
+
+        for (var i=0; i<allBlocks.length; i++) {
+            var data = allBlocks[i];
+            var category = data.category;
+            if (data.blocks.indexOf(blockType) > -1) {
+                map[blockType] = category;
+                return category;
+            }
+        }
+    }
+})();
+
+Entry.Utils.getUniqObjectsBlocks = function(objects) {
+    objects = objects || Entry.container.objects_;
+    var ret = [];
+
+    objects.forEach(function(o) {
+        var script = o.script;
+        if (!(script instanceof Entry.Code))
+            script = new Entry.Code(script);
+        var blocks = script.getBlockList();
+        blocks.forEach(function(b) {
+            if (ret.indexOf(b.type) < 0)
+                ret.push(b.type);
+        });
+    });
+
+    return ret;
+};
+
+Entry.Utils.getObjectsBlocks = function(objects) {
+    objects = objects || Entry.container.objects_;
+    var ret = [];
+
+    objects.forEach(function(o) {
+        var script = o.script;
+        if (!(script instanceof Entry.Code))
+            script = new Entry.Code(script);
+        var blocks = script.getBlockList(true);
+        blocks.forEach(function(b) {
+            ret.push(b.type);
+        });
+    });
+
+    return ret;
+};
+
+Entry.Utils.makeCategoryDataByBlocks = function(blockArr) {
+    if (!blockArr) return;
+    var that = this;
+
+    var data = EntryStatic.getAllBlocks();
+    var categoryIndexMap = {};
+    for (var i=0; i<data.length; i++) {
+        var datum = data[i];
+        datum.blocks = [];
+        categoryIndexMap[datum.category] = i;
+    }
+
+    blockArr.forEach(function(b) {
+        var category = that.getBlockCategory(b);
+        var index = categoryIndexMap[category];
+        if (index === undefined) return;
+        data[index].blocks.push(b);
+    });
+
+    var allBlocksInfo = EntryStatic.getAllBlocks();
+    for (var i=0; i<allBlocksInfo.length; i++) {
+        var info = allBlocksInfo[i];
+        var category = info.category;
+        var blocks = info.blocks;
+        if (category === 'func') {
+            allBlocksInfo.splice(i, 1);
+            continue;
+        }
+        var selectedBlocks = data[i].blocks;
+        var sorted = [];
+
+        blocks.forEach(function(b) {
+            if (selectedBlocks.indexOf(b) > -1)
+                sorted.push(b);
+        });
+
+        data[i].blocks = sorted;
+    }
+
+    return data;
+};
+
+Entry.Utils.blur = function() {
+    var elem = document.activeElement;
+    elem && elem.blur && elem.blur();
+};
+
+Entry.Utils.getWindow = function(hashId) {
+    if (!hashId) return;
+    for (var i=0; i<window.frames.length; i++) {
+        var frame = window.frames[i];
+        if (frame.Entry && frame.Entry.hashId === hashId)
+            return frame;
+    }
+};
+
+Entry.Utils.restrictAction = function(exceptions, callback, noDispose) {
+    var that = this;
+    exceptions = exceptions || [];
+    exceptions = exceptions.map(function(e) {
+        return e[0];
+    });
+    var handler = function(e) {
+        e = e || window.event;
+        var target = e.target || e.srcElement;
+        if (!that.isRightButton(e)) {
+            for (var i = 0; i < exceptions.length; i++) {
+                var exception = exceptions[i];
+                if (exception === target || $.contains(exception, target)) {
+                    if (!noDispose) {
+                        callback(e);
+                    } else target.focus && target.focus();
+                    return;
+                }
+            }
+        }
+
+        if (!e.preventDefault) {//IE quirks
+            e.returnValue = false;
+            e.cancelBubble = true;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    this._restrictHandler = handler;
+
+    var entryDom = Entry.getDom();
+    Entry.Utils.disableContextmenu(entryDom);
+    if (entryDom.addEventListener) {
+        entryDom.addEventListener('click', handler, true);
+        entryDom.addEventListener('mousedown', handler, true);
+        entryDom.addEventListener('mouseup', handler, true);
+        entryDom.addEventListener('touchstart', handler, true);
+    }
+    else {
+        entryDom.attachEvent('onclick', handler);
+        entryDom.attachEvent('onmousedown', handler);
+        entryDom.attachEvent('onmouseup', handler);
+        entryDom.attachEvent('ontouchstart', handler);
+    }
+};
+
+Entry.Utils.allowAction = function() {
+    var entryDom = Entry.getDom();
+    Entry.Utils.enableContextmenu(entryDom);
+    if (this._restrictHandler) {
+        if (entryDom.addEventListener) {
+            entryDom.removeEventListener("click", this._restrictHandler, true);
+            entryDom.removeEventListener("mousedown", this._restrictHandler, true);
+            entryDom.removeEventListener("mouseup", this._restrictHandler, true);
+            entryDom.removeEventListener("touchstart", this._restrictHandler, true);
+        } else {
+            entryDom.detachEvent('onclick', this._restrictHandler);
+            entryDom.detachEvent('onmousedown', this._restrictHandler);
+            entryDom.detachEvent('onmouseup', this._restrictHandler);
+            entryDom.detachEvent('ontouchstart', this._restrictHandler);
+        }
+        delete this._restrictHandler;
+    }
+};
+
+Entry.Utils.glideBlock = function(svgGroup, x, y, callback) {
+    var rect = svgGroup.getBoundingClientRect();
+    var svgDom = Entry.Dom(
+        $('<svg id="globalSvg" width="10" height="10"' +
+          'version="1.1" xmlns="http://www.w3.org/2000/svg"></svg>'),
+        { parent: $(document.body) }
+    );
+    svgGroup = $(svgGroup.cloneNode(true));
+    svgGroup.attr({transform: "translate(8,0)"});
+    svgDom.append(svgGroup);
+    svgDom.css({
+        top: rect.top, left: rect.left
+    });
+    svgDom.velocity({
+        top: y,
+        left: x - 8
+    }, {
+        duration: 1200,
+        complete: function() {
+            setTimeout(function() {
+                svgDom.remove();
+                callback();
+            }, 500);
+        },
+        easing: "ease-in-out"
+    });
+};
+
+Entry.Utils.getScrollPos = function() {
+    var elem = Entry.getBrowserType().indexOf("IE") > -1 ?
+        document.documentElement : document.body;
+    return {
+        left: elem.scrollLeft,
+        top: elem.scrollTop
+    };
+}
+
+Entry.Utils.copy = function(target) {
+    return JSON.parse(JSON.stringify(target));
+};
+
+//helper function for development and debug
+Entry.Utils.getAllObjectsBlockList = function() {
+    return Entry.container.objects_.reduce(function(prev, o) {
+        return prev.concat(o.script.getBlockList());
+    }, []);
+};
+
+Entry.Utils.toFixed = function (value, len) {
+    len = len || 1;
+    var powValue = Math.pow(10, len);
+
+    value = Math.round(value * powValue) / powValue;
+
+    if (Entry.isFloat(value)) return String(value);
+    else {
+        value += '.';
+        for (var i=0; i<len; i++) value += '0';
+        return value;
+    }
+};
